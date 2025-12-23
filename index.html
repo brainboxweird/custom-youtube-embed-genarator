@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Custom YouTube Embed Generator</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<style>
+body {
+  font-family: Arial, sans-serif;
+  background: #0f0f0f;
+  color: white;
+  max-width: 900px;
+  margin: auto;
+  padding: 20px;
+}
+
+.card {
+  background: #1a1a1a;
+  padding: 16px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+
+label {
+  display: block;
+  margin-top: 10px;
+}
+
+input, textarea, button {
+  width: 100%;
+  margin-top: 6px;
+  padding: 8px;
+  border-radius: 4px;
+  border: none;
+}
+
+textarea {
+  height: 360px;
+  font-family: monospace;
+}
+
+button {
+  background: white;
+  color: black;
+  font-weight: bold;
+  cursor: pointer;
+}
+</style>
+</head>
+<body>
+
+<h1>🎬 Custom YouTube Embed Generator</h1>
+
+<div class="card">
+  <label>YouTube Link
+    <input id="url" placeholder="https://www.youtube.com/watch?v=VIDEO_ID">
+  </label>
+
+  <label>Progress Bar Color
+    <input id="color" type="color" value="#ff0000">
+  </label>
+
+  <div>
+    <label><input type="checkbox" id="showPlay" checked> Show Play/Pause Button</label>
+    <label><input type="checkbox" id="showFS" checked> Show Fullscreen Button</label>
+  </div>
+
+  <button onclick="generate()">Generate Embed Code</button>
+</div>
+
+<div class="card">
+  <label>Embed Code
+    <textarea id="output" readonly></textarea>
+  </label>
+  <button onclick="copy()">Copy</button>
+</div>
+
+<script>
+function getVideoId(url) {
+  try {
+    const u = new URL(url);
+    if (u.hostname.includes("youtu.be")) return u.pathname.slice(1);
+    return u.searchParams.get("v");
+  } catch {
+    return null;
+  }
+}
+
+function generate() {
+  const videoId = getVideoId(document.getElementById("url").value);
+  if (!videoId) return alert("Invalid YouTube URL");
+
+  const color = document.getElementById("color").value;
+  const showPlay = document.getElementById("showPlay").checked;
+  const showFS = document.getElementById("showFS").checked;
+  const pid = "yt_" + Math.random().toString(36).slice(2);
+
+  // Split <script> tags to prevent breaking outer script
+  const scriptOpen = "<scr" + "ipt>";
+  const scriptClose = "</scr" + "ipt>";
+
+  const embedCode = `
+<div class="yt-wrapper" id="${pid}_wrap">
+  <div class="yt-player" id="${pid}"></div>
+
+  <div class="yt-controls">
+    ${showPlay ? `<button id="${pid}_play">▶</button>` : ""}
+    <input type="range" id="${pid}_bar" min="0" max="100" value="0">
+    ${showFS ? `<button id="${pid}_fs">⛶</button>` : ""}
+  </div>
+</div>
+
+<style>
+.yt-wrapper {
+  max-width: 560px;
+  background: #111;
+  color: white;
+}
+.yt-player {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: black;
+}
+.yt-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+}
+#${pid}_bar {
+  flex: 1;
+  accent-color: ${color};
+}
+.yt-controls button {
+  background: none;
+  border: 1px solid white;
+  color: white;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+/* Fullscreen */
+.yt-wrapper:fullscreen {
+  max-width: none;
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+.yt-wrapper:fullscreen .yt-player {
+  flex: 1;
+  aspect-ratio: auto;
+}
+.yt-wrapper:fullscreen iframe {
+  width: 100%;
+  height: 100%;
+}
+</style>
+
+${scriptOpen}
+(function(){
+  const tag=document.createElement("script");
+  tag.src="https://www.youtube.com/iframe_api";
+  document.head.appendChild(tag);
+
+  let player, playing=false;
+  window.YTReadyQueue = window.YTReadyQueue || [];
+  window.onYouTubeIframeAPIReady = () => { window.YTReadyQueue.forEach(f => f()); };
+
+  window.YTReadyQueue.push(() => {
+    player = new YT.Player("${pid}", {
+      videoId: "${videoId}",
+      playerVars: { controls: 0, origin: location.origin }
+    });
+
+    const playBtn = document.getElementById("${pid}_play");
+    const bar = document.getElementById("${pid}_bar");
+    const fsBtn = document.getElementById("${pid}_fs");
+    const wrap = document.getElementById("${pid}_wrap");
+
+    if (playBtn) playBtn.onclick = () => {
+      if (playing) player.pauseVideo();
+      else player.playVideo();
+      if(playBtn) playBtn.textContent = playing ? "▶" : "⏸";
+      playing = !playing;
+    };
+
+    setInterval(() => {
+      if(player?.getDuration && bar) {
+        bar.value = player.getCurrentTime()/player.getDuration()*100 || 0;
+      }
+    }, 500);
+
+    if(bar) bar.oninput = () => {
+      player.seekTo(bar.value/100*player.getDuration(), true);
+    };
+
+    if(fsBtn) fsBtn.onclick = () => {
+      if(document.fullscreenElement) document.exitFullscreen();
+      else wrap.requestFullscreen();
+    };
+  });
+})();
+${scriptClose}`;
+
+  document.getElementById("output").value = embedCode.trim();
+}
+
+function copy() {
+  const output = document.getElementById("output");
+  output.select();
+  document.execCommand("copy");
+  alert("Copied!");
+}
+</script>
+
+</body>
+</html>
